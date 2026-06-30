@@ -233,7 +233,7 @@ async def complete_password_reset(
         )
 
     try:
-        user.set_password(reset_data.password)
+        user.password = reset_data.password
 
         await db.execute(
             delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
