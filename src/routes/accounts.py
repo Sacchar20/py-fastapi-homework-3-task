@@ -233,7 +233,7 @@ async def complete_password_reset(
         )
 
     try:
-        user.hashed_password = UserModel.hash_password(reset_data.password)
+        user.set_password(reset_data.password)
 
         await db.execute(
             delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
@@ -303,7 +303,7 @@ async def login_user(
 
 
 @router.post(
-    "/api/v1/accounts/refresh/",
+    "/refresh/",
     status_code=status.HTTP_200_OK,
     response_model=TokenRefreshResponseSchema,
 )
