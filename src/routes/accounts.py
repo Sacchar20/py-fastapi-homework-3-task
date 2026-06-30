@@ -202,6 +202,10 @@ async def complete_password_reset(
     ).scalar_one_or_none()
 
     if not token_record:
+        await db.execute(
+            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+        )
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email or token.",
@@ -209,7 +213,7 @@ async def complete_password_reset(
 
     if token_record.token != reset_data.token:
         await db.execute(
-            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.id == token_record.id)
+            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
         )
         await db.commit()
         raise HTTPException(
@@ -220,7 +224,7 @@ async def complete_password_reset(
     expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(tz=timezone.utc):
         await db.execute(
-            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.id == token_record.id)
+            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
         )
         await db.commit()
         raise HTTPException(
@@ -229,10 +233,10 @@ async def complete_password_reset(
         )
 
     try:
-        user.set_password(reset_data.password)
+        user.hashed_password = UserModel.hash_password(reset_data.password)
 
         await db.execute(
-            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.id == token_record.id)
+            delete(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
         )
         await db.commit()
     except SQLAlchemyError:
@@ -299,7 +303,7 @@ async def login_user(
 
 
 @router.post(
-    "/refresh/",
+    "/api/v1/accounts/refresh/",
     status_code=status.HTTP_200_OK,
     response_model=TokenRefreshResponseSchema,
 )
@@ -330,6 +334,12 @@ async def refresh_access_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token not found.",
+        )
+
+    if token_record.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token owner.",
         )
 
     user = (
